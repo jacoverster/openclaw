@@ -102,6 +102,31 @@ export async function resolveSandboxContext(params: {
     workspaceDir: params.workspaceDir,
   });
 
+  const gondolinEnabled = cfg.gondolin?.enabled ?? false;
+
+  // When Gondolin is enabled, skip Docker container creation entirely.
+  // The Gondolin extension handles VM lifecycle (create/exec/close) via QEMU.
+  if (gondolinEnabled) {
+    const sandboxContext: SandboxContext = {
+      enabled: true,
+      sessionKey: rawSessionKey,
+      workspaceDir,
+      agentWorkspaceDir,
+      workspaceAccess: cfg.workspaceAccess,
+      // No Docker container — Gondolin uses QEMU VMs instead
+      containerName: "",
+      containerWorkdir: "/workspace",
+      docker: cfg.docker,
+      tools: cfg.tools,
+      browserAllowHostControl: cfg.browser.allowHostControl,
+      gondolin: cfg.gondolin,
+    };
+
+    sandboxContext.fsBridge = createSandboxFsBridge({ sandbox: sandboxContext });
+
+    return sandboxContext;
+  }
+
   const containerName = await ensureSandboxContainer({
     sessionKey: rawSessionKey,
     workspaceDir,

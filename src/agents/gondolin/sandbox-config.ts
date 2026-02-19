@@ -5,8 +5,11 @@
  * Gondolin as a sandbox type in OpenClaw's sandbox system.
  */
 
-import type { GondolinVMConfig, GondolinVFSMount } from "./types.js";
-import type { GondolinDNSMode } from "./constants.js";
+import type {
+  GondolinDNSMode,
+  GondolinVFSMount,
+  GondolinVMConfig,
+} from "./types.js";
 
 import {
   GONDOLIN_DNS_MODE_DEFAULT,
@@ -100,7 +103,10 @@ export function createGondolinSandboxConfig(
 
   // Add secrets if provided
   if (secrets) {
-    config.secrets = secrets;
+    config.http = {
+      ...config.http,
+      secrets,
+    };
   }
 
   return config;

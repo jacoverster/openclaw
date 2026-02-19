@@ -6,9 +6,18 @@ import { setGondolinRuntime } from "../pi-extensions/gondolin-runtime.js";
 
 // Mock dependencies
 vi.mock("../sandbox/config.js", () => ({
-  resolveSandboxConfigForAgent: vi.fn((_cfg: unknown, _modelId: string) => {
+  resolveSandboxConfigForAgent: vi.fn((cfg: unknown, _modelId: string) => {
+    const typedCfg = cfg as {
+      agents?: { defaults?: { sandbox?: { gondolin?: { enabled?: boolean; dnsMode?: string; enableIngress?: boolean; additionalHosts?: string[] } } } };
+    };
+    const gondolin = typedCfg?.agents?.defaults?.sandbox?.gondolin;
     return {
-      gondolin: { enabled: false },
+      gondolin: {
+        enabled: gondolin?.enabled ?? false,
+        dnsMode: gondolin?.dnsMode,
+        enableIngress: gondolin?.enableIngress,
+        additionalHosts: gondolin?.additionalHosts,
+      },
     };
   }),
 }));
@@ -98,7 +107,7 @@ describe("buildEmbeddedExtensionPaths", () => {
         modelRegistry: null,
       });
 
-      expect(paths).toContain(expect.stringContaining("gondolin"));
+      expect(paths).toContainEqual(expect.stringContaining("gondolin"));
     });
 
     it("should set runtime config when gondolin is enabled", () => {

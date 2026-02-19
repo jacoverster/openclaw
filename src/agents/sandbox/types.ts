@@ -101,6 +101,8 @@ export type SandboxContext = {
   browserAllowHostControl: boolean;
   browser?: SandboxBrowserContext;
   fsBridge?: SandboxFsBridge;
+  /** When true, sandbox uses Gondolin VM instead of Docker container */
+  gondolin?: SandboxGondolinConfig;
 };
 
 export type SandboxWorkspaceInfo = {

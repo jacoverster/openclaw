@@ -176,6 +176,12 @@ export interface GondolinCheckpoint {
 /**
  * VFS Provider types
  */
+export interface GondolinVFSMount {
+  source: string;
+  target: string;
+  mode: "ro" | "rw";
+}
+
 export interface GondolinVFSMounts {
   [mountPoint: string]: GondolinVFSProvider;
 }
@@ -248,10 +254,32 @@ export interface GondolinVMConfig {
   };
 
   /** HTTP hooks (from createHttpHooks) */
-  httpHooks?: unknown;
+  httpHooks?: any;
 
   /** Environment variables */
   env?: Record<string, string>;
+
+  /** Host path to workspace directory (OpenClaw specific helper shape) */
+  workspaceDir?: string;
+
+  /** Array mount form used by OpenClaw helper config */
+  mounts?: GondolinVFSMount[];
+
+  /** OpenClaw convenience network shape */
+  network?: {
+    dnsMode?: GondolinDNSMode;
+    dnsServers?: string[];
+    allowedHosts?: string[];
+  };
+
+  /** OpenClaw convenience resource shape */
+  resources?: {
+    memoryMB?: number;
+    cpus?: number;
+  };
+
+  /** OpenClaw convenience image field */
+  image?: string;
 
   /** Auto-start VM (default: true) */
   autoStart?: boolean;
@@ -262,7 +290,7 @@ export interface GondolinVMConfig {
  */
 export interface GondolinHttpHooksResult {
   /** HTTP hooks for VM.create() */
-  httpHooks: unknown;
+  httpHooks: any;
   /** Environment variables with placeholders */
   env: Record<string, string>;
 }

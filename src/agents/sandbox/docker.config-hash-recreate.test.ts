@@ -117,6 +117,7 @@ function createSandboxConfig(dns: string[]): SandboxConfig {
     },
     tools: { allow: [], deny: [] },
     prune: { idleHours: 24, maxAgeDays: 7 },
+    gondolin: { enabled: false },
   };
 }
 

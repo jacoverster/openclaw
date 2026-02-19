@@ -16,6 +16,7 @@
 import path from "node:path";
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import {
   createEditTool,
   createReadTool,
@@ -24,6 +25,7 @@ import {
 
 import { GONDOLIN_VFS_WORKSPACE_TARGET } from "../gondolin/constants.js";
 import { PROVIDER_ENV_VAR_MAP, type GondolinVMConfig } from "../gondolin/index.js";
+import { resolveAllowedHostsForProviders } from "../gondolin/provider-hosts.js";
 import { getGondolinRuntime, type GondolinRuntimeConfig } from "./gondolin-runtime.js";
 
 const GUEST_WORKSPACE = GONDOLIN_VFS_WORKSPACE_TARGET; // "/workspace"
@@ -71,14 +73,21 @@ export function shQuote(value: string): string {
  * Maps paths relative to localCwd into /workspace
  */
 export function toGuestPath(localCwd: string, localPath: string): string {
-  const rel = path.relative(localCwd, localPath);
-  if (rel === "") return GUEST_WORKSPACE;
+  const isWindowsStyle =
+    /^[a-zA-Z]:[\\/]/.test(localCwd) ||
+    /^[a-zA-Z]:[\\/]/.test(localPath) ||
+    localCwd.includes("\\") ||
+    localPath.includes("\\");
+  const rel = isWindowsStyle
+    ? path.win32.relative(localCwd, localPath)
+    : path.relative(localCwd, localPath);
+  if (rel === "") {return GUEST_WORKSPACE;}
   // Check for path escape attempts
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+  if (rel.startsWith("..") || (isWindowsStyle ? path.win32.isAbsolute(rel) : path.isAbsolute(rel))) {
     throw new Error(`path escapes workspace: ${localPath}`);
   }
   // Convert platform separators to POSIX for the Linux guest
-  const posixRel = rel.split(path.sep).join(path.posix.sep);
+  const posixRel = rel.split(/[/\\]/).join(path.posix.sep);
   return path.posix.join(GUEST_WORKSPACE, posixRel);
 }
 
@@ -86,10 +95,10 @@ export function toGuestPath(localCwd: string, localPath: string): string {
  * Sanitize environment variables for VM execution
  */
 function sanitizeEnv(env?: NodeJS.ProcessEnv): Record<string, string> | undefined {
-  if (!env) return undefined;
+  if (!env) {return undefined;}
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) {
-    if (typeof v === "string") out[k] = v;
+    if (typeof v === "string") {out[k] = v;}
   }
   return out;
 }
@@ -126,7 +135,7 @@ function createGondolinReadOps(vm: Awaited<ReturnType<typeof import("@earendil-w
           "-lc",
           `file --mime-type -b ${shQuote(guestPath)}`,
         ]);
-        if (!r.ok) return null;
+        if (!r.ok) {return null;}
         const m = r.stdout.trim();
         return ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(m)
           ? m
@@ -181,9 +190,43 @@ function createGondolinEditOps(vm: Awaited<ReturnType<typeof import("@earendil-w
 }
 
 /**
+ * Create Exec operations that execute inside the Gondolin VM
+ * This runs shell commands in the guest instead of on the host
+ */
+function createGondolinExecOps(vm: Awaited<ReturnType<typeof import("@earendil-works/gondolin").VM.create>>, localCwd: string) {
+  return {
+    exec: async (command: string, options?: {
+      cwd?: string;
+      env?: Record<string, string>;
+      timeout?: number;
+    }) => {
+      // Convert working directory to guest path
+      const workdir = options?.cwd ? toGuestPath(localCwd, options.cwd) : GUEST_WORKSPACE;
+
+      // Build the command - cd to workdir then run the command
+      const fullCommand = `cd ${shQuote(workdir)} && ${command}`;
+
+      // Execute in VM
+      const result = await vm.exec(["/bin/sh", "-lc", fullCommand], {
+        signal: options?.timeout ? AbortSignal.timeout(options.timeout) : undefined,
+      });
+
+      return {
+        ok: result.ok,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      };
+    },
+  } as const;
+}
+
+/**
  * Options for Gondolin extension
  */
 export interface GondolinExtensionOptions {
+  /** Workspace directory to mount in the VM (defaults to process.cwd() if not set) */
+  workspaceDir?: string;
   /** Session label for VM identification */
   sessionLabel?: string;
   /** API keys for secret injection */
@@ -205,23 +248,39 @@ export interface GondolinExtensionOptions {
  * @param options Optional configuration options (merged with registry values)
  */
 export function createGondolinExtension(options?: GondolinExtensionOptions) {
+  console.log("[Gondolin] Creating gondolin extension, options:", JSON.stringify(options));
   return function gondolinExtension(pi: ExtensionAPI) {
+    type GondolinVmInstance = Awaited<ReturnType<typeof import("@earendil-works/gondolin").VM.create>>;
+
     // Try to get runtime config from registry
-    const runtimeConfig = getGondolinRuntime(pi.sessionManager) ?? ({} as GondolinRuntimeConfig);
-    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sessionManager = (pi as any).sessionManager;
+    console.log("[Gondolin] Extension init: sessionManager available:", !!sessionManager);
+    const runtimeConfig = sessionManager
+      ? (getGondolinRuntime(sessionManager) ?? ({} as GondolinRuntimeConfig))
+      : ({} as GondolinRuntimeConfig);
+    console.log("[Gondolin] Extension init: runtimeConfig:", JSON.stringify({
+      hasWorkspaceDir: !!runtimeConfig.workspaceDir,
+      hasSessionLabel: !!runtimeConfig.sessionLabel,
+      apiKeysCount: runtimeConfig.apiKeys?.length ?? 0,
+      additionalHostsCount: runtimeConfig.additionalHosts?.length ?? 0,
+    }));
+
     // Merge options with runtime config (runtime config takes precedence for backwards compatibility)
     const effectiveOptions: GondolinExtensionOptions = {
       ...options,
+      workspaceDir: runtimeConfig.workspaceDir ?? options?.workspaceDir,
       sessionLabel: runtimeConfig.sessionLabel ?? options?.sessionLabel,
       apiKeys: runtimeConfig.apiKeys?.length ? runtimeConfig.apiKeys : options?.apiKeys,
-      additionalHosts: runtimeConfig.additionalHosts?.length 
-        ? [...(options?.additionalHosts ?? []), ...runtimeConfig.additionalHosts] 
+      additionalHosts: runtimeConfig.additionalHosts?.length
+        ? [...(options?.additionalHosts ?? []), ...runtimeConfig.additionalHosts]
         : options?.additionalHosts,
       dnsMode: runtimeConfig.dnsMode ?? options?.dnsMode,
       enableIngress: runtimeConfig.enableIngress ?? options?.enableIngress,
     };
 
-    const localCwd = process.cwd();
+    // Use workspaceDir from config, falling back to process.cwd()
+    const localCwd = effectiveOptions.workspaceDir ?? process.cwd();
 
     // Create local tool instances (we'll wrap them)
     const localRead = createReadTool(localCwd);
@@ -229,23 +288,28 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
     const localEdit = createEditTool(localCwd);
 
     // VM state
-    let vm: Awaited<ReturnType<typeof import("@earendil-works/gondolin").VM.create>> | null = null;
-    let vmStarting: Promise<typeof vm> | null = null;
+    let vm: GondolinVmInstance | null = null;
+    let vmStarting: Promise<GondolinVmInstance> | null = null;
 
     /**
      * Ensure the VM is started, starting it lazily if needed
      */
-    async function ensureVm(ctx?: ExtensionContext): Promise<typeof vm> {
-      if (vm) return vm;
-      if (vmStarting) return vmStarting;
+    async function ensureVm(ctx?: ExtensionContext): Promise<GondolinVmInstance> {
+      if (vm) {return vm;}
+      if (vmStarting) {return vmStarting;}
+
+      console.log("[Gondolin] Starting VM...");
 
       vmStarting = (async () => {
         const gondolin = await tryLoadGondolin();
         if (!gondolin) {
+          console.log("[Gondolin] @earendil-works/gondolin not installed");
           throw new Error(
             "@earendil-works/gondolin is not installed. Run: pnpm add @earendil-works/gondolin"
           );
         }
+
+        console.log("[Gondolin] Gondolin SDK loaded, creating VM...");
 
         ctx?.ui.setStatus(
           "gondolin",
@@ -258,12 +322,17 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
 
         if (effectiveOptions?.apiKeys) {
           for (const { provider, apiKey } of effectiveOptions.apiKeys) {
-            if (!apiKey) continue;
+            if (!apiKey) {continue;}
 
             const envVarName = getEnvVarName(provider);
-            // Add provider-specific hosts (simplified - full implementation would use provider-hosts.ts)
-            const hosts: string[] = [];
-            
+            // Get provider-specific hosts using the host resolution helper
+            const hosts = resolveAllowedHostsForProviders([provider]);
+
+            // Add hosts to the allowlist set
+            for (const host of hosts) {
+              allowedHostsSet.add(host);
+            }
+
             secrets[envVarName] = {
               hosts,
               value: apiKey,
@@ -291,7 +360,7 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
             allowedHosts: Array.from(allowedHostsSet),
             secrets,
           });
-          
+
           vmConfig.httpHooks = httpHooks;
           vmConfig.env = env;
         } else if (allowedHostsSet.size > 0) {
@@ -301,8 +370,29 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
           };
         }
 
-        const created = await gondolin.VM.create(vmConfig);
+        const created = await gondolin.VM.create(
+          vmConfig as Parameters<typeof gondolin.VM.create>[0]
+        );
         vm = created;
+
+        console.log("[Gondolin] VM created successfully, id:", created.id);
+
+        // Enable ingress if configured
+        if (effectiveOptions?.enableIngress) {
+          try {
+            const ingress = await created.enableIngress({
+              listenHost: "127.0.0.1",
+              listenPort: 0, // ephemeral port
+            });
+            console.log("[Gondolin] Ingress enabled:", ingress.url);
+            ctx?.ui.setStatus(
+              "gondolin",
+              ctx.ui.theme.fg("accent", `Gondolin: ingress at ${ingress.url}`)
+            );
+          } catch (err) {
+            console.warn("[Gondolin] Failed to enable ingress:", err);
+          }
+        }
 
         ctx?.ui.setStatus(
           "gondolin",
@@ -340,7 +430,7 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
      * Handle session shutdown - clean up VM
      */
     pi.on("session_shutdown", async (_event, ctx) => {
-      if (!vm) return;
+      if (!vm) {return;}
 
       ctx.ui.setStatus(
         "gondolin",
@@ -401,6 +491,70 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
         return tool.execute(id, params, signal, onUpdate);
       },
     });
+
+    /**
+     * Register exec tool to run shell commands inside the Gondolin VM
+     * This is a custom tool that wraps vm.exec() for shell commands
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const execToolDefinition: any = {
+      name: "exec",
+      label: "exec",
+      description: "Execute shell commands inside the Gondolin VM. All commands run in an isolated guest VM with the workspace mounted at /workspace.",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          command: {
+            type: "string" as const,
+            description: "Shell command to execute",
+          },
+          workdir: {
+            type: "string" as const,
+            description: "Working directory (relative to workspace)",
+          },
+        },
+        required: ["command"],
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      execute: async (toolCallId: any, args: any, signal: any, onUpdate: any) => {
+        console.log("[Gondolin] Exec tool called with args:", JSON.stringify(args));
+        const activeVm = await ensureVm();
+        const execOps = createGondolinExecOps(activeVm, localCwd);
+
+        const params = args as { command: string; workdir?: string };
+        const options: { cwd?: string; env?: Record<string, string>; timeout?: number } = {};
+
+        if (params.workdir) {
+          options.cwd = params.workdir;
+        }
+
+        try {
+          const result = await execOps.exec(params.command, options);
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: result.stdout || result.stderr || "",
+              },
+            ],
+            details: {
+              ok: result.ok,
+              exitCode: result.exitCode ?? 0,
+              stdout: result.stdout,
+              stderr: result.stderr,
+            },
+          };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          return {
+            content: [{ type: "text" as const, text: `Error: ${message}` }],
+            details: { ok: false, exitCode: 1, stdout: "", stderr: message },
+          };
+        }
+      },
+    };
+    pi.registerTool(execToolDefinition);
 
     /**
      * Override system prompt to show /workspace as the working directory

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { sliceUtf16Safe } from "../utils.js";
 import { assertSandboxPath } from "./sandbox-paths.js";
+import type { SandboxGondolinConfig } from "./sandbox/types.js";
 
 const CHUNK_LIMIT = 8 * 1024;
 
@@ -12,6 +13,8 @@ export type BashSandboxConfig = {
   workspaceDir: string;
   containerWorkdir: string;
   env?: Record<string, string>;
+  /** When true, sandbox uses Gondolin VM instead of Docker container */
+  gondolin?: SandboxGondolinConfig;
 };
 
 export function buildSandboxEnv(params: {

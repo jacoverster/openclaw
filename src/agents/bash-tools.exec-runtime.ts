@@ -385,6 +385,31 @@ export async function runExecProcess(opts: {
         env: NodeJS.ProcessEnv;
         stdinMode: "pipe-open";
       } = (() => {
+    // Check if Gondolin VM is enabled for this sandbox
+    const gondolinEnabled = opts.sandbox?.gondolin?.enabled ?? false;
+
+    // If Gondolin is enabled, skip Docker and use local exec (host)
+    // Note: Full Gondolin VM integration requires separate process supervisor hook
+    if (opts.sandbox && gondolinEnabled) {
+      const { shell, args: shellArgs } = getShellConfig();
+      const childArgv = [shell, ...shellArgs, execCommand];
+      if (opts.usePty) {
+        return {
+          mode: "pty" as const,
+          ptyCommand: execCommand,
+          childFallbackArgv: childArgv,
+          env: opts.env,
+          stdinMode: "pipe-open" as const,
+        };
+      }
+      return {
+        mode: "child" as const,
+        argv: childArgv,
+        env: opts.env,
+        stdinMode: "pipe-closed" as const,
+      };
+    }
+
     if (opts.sandbox) {
       return {
         mode: "child" as const,

@@ -8,6 +8,7 @@ import type {
 import type {
   SandboxBrowserSettings,
   SandboxDockerSettings,
+  SandboxGondolinSettings,
   SandboxPruneSettings,
 } from "./types.sandbox.js";
 import type { MemorySearchConfig } from "./types.tools.js";
@@ -281,6 +282,8 @@ export type AgentDefaultsConfig = {
     browser?: SandboxBrowserSettings;
     /** Auto-prune sandbox containers. */
     prune?: SandboxPruneSettings;
+    /** Gondolin VM isolation settings. */
+    gondolin?: SandboxGondolinSettings;
   };
 };
 
