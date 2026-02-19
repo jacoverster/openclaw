@@ -75,3 +75,23 @@ export type SandboxPruneSettings = {
   /** Prune if older than N days (0 disables). */
   maxAgeDays?: number;
 };
+
+/**
+ * Settings for Gondolin VM sandbox isolation
+ */
+export type SandboxGondolinSettings = {
+  /** Enable Gondolin VM isolation */
+  enabled?: boolean;
+  /** VM memory in MB (default: 4096) */
+  memoryMb?: number;
+  /** Number of CPUs (default: 2) */
+  cpus?: number;
+  /** DNS mode: synthetic | trusted | open */
+  dnsMode?: "synthetic" | "trusted" | "open";
+  /** Additional hosts to allow */
+  additionalHosts?: string[];
+  /** Workspace mount mode: ro | rw */
+  workspaceMode?: "ro" | "rw";
+  /** Enable HTTP ingress for exposing guest services */
+  enableIngress?: boolean;
+};

@@ -3,6 +3,26 @@ import type { SandboxDockerConfig } from "./types.docker.js";
 
 export type { SandboxDockerConfig } from "./types.docker.js";
 
+/**
+ * Gondolin VM configuration for sandbox isolation
+ */
+export type SandboxGondolinConfig = {
+  /** Enable gondolin VM isolation */
+  enabled: boolean;
+  /** VM memory in MB (default: 4096) */
+  memoryMb?: number;
+  /** Number of CPUs (default: 2) */
+  cpus?: number;
+  /** DNS mode: synthetic | trusted | open */
+  dnsMode?: "synthetic" | "trusted" | "open";
+  /** Additional hosts to allow */
+  additionalHosts?: string[];
+  /** Workspace mount mode: ro | rw */
+  workspaceMode?: "ro" | "rw";
+  /** Enable HTTP ingress for exposing guest services */
+  enableIngress?: boolean;
+};
+
 export type SandboxToolPolicy = {
   allow?: string[];
   deny?: string[];
@@ -59,6 +79,7 @@ export type SandboxConfig = {
   browser: SandboxBrowserConfig;
   tools: SandboxToolPolicy;
   prune: SandboxPruneConfig;
+  gondolin: SandboxGondolinConfig;
 };
 
 export type SandboxBrowserContext = {

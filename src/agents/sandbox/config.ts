@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../../config/config.js";
+import type { SandboxGondolinSettings } from "../../config/types.sandbox.js";
 import { resolveAgentConfig } from "../agent-scope.js";
 import {
   DEFAULT_SANDBOX_BROWSER_AUTOSTART_TIMEOUT_MS,
@@ -21,6 +22,7 @@ import type {
   SandboxDockerConfig,
   SandboxPruneConfig,
   SandboxScope,
+  SandboxGondolinConfig,
 } from "./types.js";
 
 export function resolveSandboxBrowserDockerCreateConfig(params: {
@@ -142,6 +144,27 @@ export function resolveSandboxPruneConfig(params: {
   };
 }
 
+/**
+ * Resolve Gondolin VM config with agent overrides
+ */
+export function resolveSandboxGondolinConfig(params: {
+  globalGondolin?: SandboxGondolinSettings;
+  agentGondolin?: SandboxGondolinSettings;
+}): SandboxGondolinConfig {
+  const agentGondolin = params.agentGondolin;
+  const globalGondolin = params.globalGondolin;
+
+  return {
+    enabled: agentGondolin?.enabled ?? globalGondolin?.enabled ?? false,
+    memoryMb: agentGondolin?.memoryMb ?? globalGondolin?.memoryMb ?? 4096,
+    cpus: agentGondolin?.cpus ?? globalGondolin?.cpus ?? 2,
+    dnsMode: agentGondolin?.dnsMode ?? globalGondolin?.dnsMode ?? "synthetic",
+    additionalHosts: agentGondolin?.additionalHosts ?? globalGondolin?.additionalHosts ?? [],
+    workspaceMode: agentGondolin?.workspaceMode ?? globalGondolin?.workspaceMode ?? "rw",
+    enableIngress: agentGondolin?.enableIngress ?? globalGondolin?.enableIngress ?? false,
+  };
+}
+
 export function resolveSandboxConfigForAgent(
   cfg?: OpenClawConfig,
   agentId?: string,
@@ -186,6 +209,10 @@ export function resolveSandboxConfigForAgent(
       scope,
       globalPrune: agent?.prune,
       agentPrune: agentSandbox?.prune,
+    }),
+    gondolin: resolveSandboxGondolinConfig({
+      globalGondolin: agent?.gondolin,
+      agentGondolin: agentSandbox?.gondolin,
     }),
   };
 }

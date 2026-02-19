@@ -206,6 +206,21 @@ export const SandboxPruneSchema = z
   .strict()
   .optional();
 
+/**
+ * Schema for Gondolin VM configuration in sandbox settings
+ */
+export const SandboxGondolinSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    memoryMb: z.number().int().positive().optional(),
+    cpus: z.number().int().positive().optional(),
+    dnsMode: z.union([z.literal("synthetic"), z.literal("trusted"), z.literal("open")]).optional(),
+    additionalHosts: z.array(z.string()).optional(),
+    workspaceMode: z.union([z.literal("ro"), z.literal("rw")]).optional(),
+    enableIngress: z.boolean().optional(),
+  })
+  .strict();
+
 const ToolPolicyBaseSchema = z
   .object({
     allow: z.array(z.string()).optional(),
@@ -414,6 +429,7 @@ export const AgentSandboxSchema = z
     docker: SandboxDockerSchema,
     browser: SandboxBrowserSchema,
     prune: SandboxPruneSchema,
+    gondolin: SandboxGondolinSchema,
   })
   .strict()
   .optional();

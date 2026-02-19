@@ -6,6 +6,7 @@ import type {
   SandboxBrowserSettings,
   SandboxDockerSettings,
   SandboxPruneSettings,
+  SandboxGondolinSettings,
 } from "./types.sandbox.js";
 import type { AgentToolsConfig, MemorySearchConfig } from "./types.tools.js";
 
@@ -61,6 +62,8 @@ export type AgentConfig = {
     browser?: SandboxBrowserSettings;
     /** Auto-prune overrides for this agent. */
     prune?: SandboxPruneSettings;
+    /** Gondolin VM isolation settings */
+    gondolin?: SandboxGondolinSettings;
   };
   tools?: AgentToolsConfig;
 };
