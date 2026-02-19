@@ -581,9 +581,16 @@ export async function runEmbeddedAttempt(
       // When Gondolin is enabled, filter out exec and process tools from customTools
       // so the extension's VM-based exec tool takes precedence
       const gondolinEnabled = sandbox?.gondolin?.enabled ?? false;
+      console.log(
+        "[Gondolin] gondolinEnabled:",
+        gondolinEnabled,
+        "customTools before filter:",
+        customTools.length,
+      );
       const filteredCustomTools = gondolinEnabled
         ? customTools.filter((tool) => tool.name !== "exec" && tool.name !== "process")
         : customTools;
+      console.log("[Gondolin] customTools after filter:", filteredCustomTools.length);
 
       // Add client tools (OpenResponses hosted tools) to customTools
       let clientToolCallDetected: { name: string; params: Record<string, unknown> } | null = null;
