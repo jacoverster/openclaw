@@ -2,6 +2,7 @@ export {
   resolveSandboxBrowserConfig,
   resolveSandboxConfigForAgent,
   resolveSandboxDockerConfig,
+  resolveSandboxGondolinConfig,
   resolveSandboxPruneConfig,
   resolveSandboxScope,
 } from "./sandbox/config.js";
@@ -34,6 +35,7 @@ export type {
   SandboxConfig,
   SandboxContext,
   SandboxDockerConfig,
+  SandboxGondolinConfig,
   SandboxPruneConfig,
   SandboxScope,
   SandboxToolPolicy,

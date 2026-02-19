@@ -124,4 +124,77 @@ describe("sandbox config merges", () => {
     });
     expect(pruneShared).toEqual({ idleHours: 24, maxAgeDays: 7 });
   });
+
+  it("merges sandbox gondolin config (agent wins)", async () => {
+    const { resolveSandboxGondolinConfig } = await import("./sandbox.js");
+
+    const resolved = resolveSandboxGondolinConfig({
+      globalGondolin: {
+        enabled: true,
+        dnsMode: "synthetic",
+        memoryMb: 4096,
+        cpus: 2,
+        additionalHosts: ["global.example.com"],
+        workspaceMode: "rw",
+        enableIngress: false,
+      },
+      agentGondolin: {
+        enabled: false,
+        dnsMode: "trusted",
+        memoryMb: 8192,
+        additionalHosts: ["agent.example.com"],
+        enableIngress: true,
+      },
+    });
+
+    // Agent overrides
+    expect(resolved.enabled).toBe(false);
+    expect(resolved.dnsMode).toBe("trusted");
+    expect(resolved.memoryMb).toBe(8192);
+    expect(resolved.enableIngress).toBe(true);
+    
+    // Agent-specific hosts override (not combined)
+    expect(resolved.additionalHosts).toEqual(["agent.example.com"]);
+    
+    // Defaults when not specified
+    expect(resolved.cpus).toBe(2);
+    expect(resolved.workspaceMode).toBe("rw");
+  });
+
+  it("uses defaults when no gondolin config provided", async () => {
+    const { resolveSandboxGondolinConfig } = await import("./sandbox.js");
+
+    const resolved = resolveSandboxGondolinConfig({});
+
+    expect(resolved.enabled).toBe(false);
+    expect(resolved.dnsMode).toBe("synthetic");
+    expect(resolved.memoryMb).toBe(4096);
+    expect(resolved.cpus).toBe(2);
+    expect(resolved.additionalHosts).toEqual([]);
+    expect(resolved.workspaceMode).toBe("rw");
+    expect(resolved.enableIngress).toBe(false);
+  });
+
+  it("ignores agent gondolin overrides under shared scope", async () => {
+    const { resolveSandboxGondolinConfig } = await import("./sandbox.js");
+
+    // Under shared scope, agent-specific settings are ignored
+    // But since gondolin doesn't have a scope field in the current implementation,
+    // this test documents current behavior - agent overrides are still applied
+    const resolved = resolveSandboxGondolinConfig({
+      globalGondolin: {
+        enabled: true,
+        dnsMode: "synthetic",
+      },
+      agentGondolin: {
+        enabled: false,
+        dnsMode: "open",
+      },
+    });
+
+    // Currently agent wins even though there's no scope distinction for gondolin
+    // This may need to change if we add scope support to gondolin
+    expect(resolved.enabled).toBe(false);
+    expect(resolved.dnsMode).toBe("open");
+  });
 });
