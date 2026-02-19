@@ -5,11 +5,15 @@ import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/config.js";
 import { resolveContextWindowInfo } from "../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
+import { PROVIDER_ENV_VAR_MAP } from "../gondolin/index.js";
+import { resolveAllowedHostsForProviders } from "../gondolin/provider-hosts.js";
+import { setGondolinRuntime } from "../pi-extensions/gondolin-runtime.js";
 import { setCompactionSafeguardRuntime } from "../pi-extensions/compaction-safeguard-runtime.js";
 import { setContextPruningRuntime } from "../pi-extensions/context-pruning/runtime.js";
 import { computeEffectiveSettings } from "../pi-extensions/context-pruning/settings.js";
 import { makeToolPrunablePredicate } from "../pi-extensions/context-pruning/tools.js";
 import { ensurePiCompactionReserveTokens } from "../pi-settings.js";
+import { resolveSandboxConfigForAgent } from "../sandbox/config.js";
 import { isCacheTtlEligibleProvider, readLastCacheTtlTimestamp } from "./cache-ttl.js";
 
 function resolvePiExtensionPath(id: string): string {
@@ -71,12 +75,75 @@ function resolveCompactionMode(cfg?: OpenClawConfig): "default" | "safeguard" {
   return cfg?.agents?.defaults?.compaction?.mode === "safeguard" ? "safeguard" : "default";
 }
 
+/**
+ * Build gondolin extension configuration
+ * Returns the extension path and sets up runtime config if gondolin is enabled
+ */
+function buildGondolinExtension(params: {
+  cfg: OpenClawConfig | undefined;
+  sessionManager: SessionManager;
+  workspaceDir: string;
+  provider: string;
+  modelId: string;
+  modelRegistry: unknown;
+}): { additionalExtensionPaths?: string[] } {
+  // Resolve sandbox config to check if gondolin is enabled
+  const sandboxCfg = resolveSandboxConfigForAgent(params.cfg, params.modelId);
+  const gondolinCfg = sandboxCfg.gondolin;
+
+  // Check if gondolin is enabled
+  if (!gondolinCfg?.enabled) {
+    return {};
+  }
+
+  // Get allowed hosts from provider
+  const allowedHosts = resolveAllowedHostsForProviders([params.provider]);
+  if (gondolinCfg.additionalHosts) {
+    allowedHosts.push(...gondolinCfg.additionalHosts);
+  }
+
+  // Try to get API key from model registry
+  let apiKeys: Array<{ provider: string; apiKey: string }> = [];
+  try {
+    // @ts-expect-error - modelRegistry is from pi-coding-agent
+    const getApiKey = params.modelRegistry?.getApiKey?.bind(params.modelRegistry);
+    if (typeof getApiKey === "function") {
+      // @ts-expect-error - modelRegistry is from pi-coding-agent
+      const apiKey = params.modelRegistry.getApiKey(params.provider);
+      if (apiKey) {
+        apiKeys = [{
+          provider: params.provider,
+          apiKey,
+        }];
+      }
+    }
+  } catch {
+    // Ignore errors - API key retrieval is best-effort
+  }
+
+  // Set runtime configuration for the gondolin extension
+  setGondolinRuntime(params.sessionManager, {
+    workspaceDir: params.workspaceDir,
+    sessionLabel: `openclaw-${params.modelId}-${Date.now()}`,
+    apiKeys,
+    additionalHosts: allowedHosts,
+    dnsMode: gondolinCfg.dnsMode,
+    enableIngress: gondolinCfg.enableIngress,
+  });
+
+  return {
+    additionalExtensionPaths: [resolvePiExtensionPath("gondolin")],
+  };
+}
+
 export function buildEmbeddedExtensionPaths(params: {
   cfg: OpenClawConfig | undefined;
   sessionManager: SessionManager;
   provider: string;
   modelId: string;
   model: Model<Api> | undefined;
+  workspaceDir?: string;
+  modelRegistry?: unknown;
 }): string[] {
   const paths: string[] = [];
   if (resolveCompactionMode(params.cfg) === "safeguard") {
@@ -98,6 +165,20 @@ export function buildEmbeddedExtensionPaths(params: {
   if (pruning.additionalExtensionPaths) {
     paths.push(...pruning.additionalExtensionPaths);
   }
+  
+  // Build gondolin extension if enabled
+  const gondolin = buildGondolinExtension({
+    cfg: params.cfg,
+    sessionManager: params.sessionManager,
+    workspaceDir: params.workspaceDir ?? "",
+    provider: params.provider,
+    modelId: params.modelId,
+    modelRegistry: params.modelRegistry,
+  });
+  if (gondolin.additionalExtensionPaths) {
+    paths.push(...gondolin.additionalExtensionPaths);
+  }
+  
   return paths;
 }
 

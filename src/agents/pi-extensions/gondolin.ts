@@ -24,6 +24,7 @@ import {
 
 import { GONDOLIN_VFS_WORKSPACE_TARGET } from "../gondolin/constants.js";
 import { PROVIDER_ENV_VAR_MAP, type GondolinVMConfig } from "../gondolin/index.js";
+import { getGondolinRuntime, type GondolinRuntimeConfig } from "./gondolin-runtime.js";
 
 const GUEST_WORKSPACE = GONDOLIN_VFS_WORKSPACE_TARGET; // "/workspace"
 
@@ -198,10 +199,28 @@ export interface GondolinExtensionOptions {
 /**
  * Create a Gondolin extension for OpenClaw
  *
- * @param options Configuration options for the VM
+ * Configuration is read from the runtime registry if no options are provided.
+ * The registry must be set before the extension is loaded via setGondolinRuntime().
+ *
+ * @param options Optional configuration options (merged with registry values)
  */
 export function createGondolinExtension(options?: GondolinExtensionOptions) {
   return function gondolinExtension(pi: ExtensionAPI) {
+    // Try to get runtime config from registry
+    const runtimeConfig = getGondolinRuntime(pi.sessionManager) ?? ({} as GondolinRuntimeConfig);
+    
+    // Merge options with runtime config (runtime config takes precedence for backwards compatibility)
+    const effectiveOptions: GondolinExtensionOptions = {
+      ...options,
+      sessionLabel: runtimeConfig.sessionLabel ?? options?.sessionLabel,
+      apiKeys: runtimeConfig.apiKeys?.length ? runtimeConfig.apiKeys : options?.apiKeys,
+      additionalHosts: runtimeConfig.additionalHosts?.length 
+        ? [...(options?.additionalHosts ?? []), ...runtimeConfig.additionalHosts] 
+        : options?.additionalHosts,
+      dnsMode: runtimeConfig.dnsMode ?? options?.dnsMode,
+      enableIngress: runtimeConfig.enableIngress ?? options?.enableIngress,
+    };
+
     const localCwd = process.cwd();
 
     // Create local tool instances (we'll wrap them)
@@ -235,10 +254,10 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
 
         // Build secrets config from API keys
         const secrets: Record<string, { hosts: string[]; value: string }> = {};
-        const allowedHostsSet = new Set<string>(options?.additionalHosts ?? []);
+        const allowedHostsSet = new Set<string>(effectiveOptions?.additionalHosts ?? []);
 
-        if (options?.apiKeys) {
-          for (const { provider, apiKey } of options.apiKeys) {
+        if (effectiveOptions?.apiKeys) {
+          for (const { provider, apiKey } of effectiveOptions.apiKeys) {
             if (!apiKey) continue;
 
             const envVarName = getEnvVarName(provider);
@@ -254,20 +273,20 @@ export function createGondolinExtension(options?: GondolinExtensionOptions) {
 
         // Build VM config
         const vmConfig: GondolinVMConfig = {
-          sessionLabel: options?.sessionLabel,
+          sessionLabel: effectiveOptions?.sessionLabel,
           vfs: {
             mounts: {
               [GUEST_WORKSPACE]: new (gondolin.RealFSProvider)(localCwd),
             },
           },
           dns: {
-            mode: options?.dnsMode ?? "synthetic",
+            mode: effectiveOptions?.dnsMode ?? "synthetic",
           },
           autoStart: true,
         };
 
         // Add HTTP hooks with secret injection if we have API keys
-        if (options?.apiKeys && options.apiKeys.length > 0 && gondolin.createHttpHooks) {
+        if (effectiveOptions?.apiKeys && effectiveOptions.apiKeys.length > 0 && gondolin.createHttpHooks) {
           const { httpHooks, env } = gondolin.createHttpHooks({
             allowedHosts: Array.from(allowedHostsSet),
             secrets,
