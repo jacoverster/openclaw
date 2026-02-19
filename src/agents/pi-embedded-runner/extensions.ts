@@ -1,17 +1,18 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Api, Model } from "@mariozechner/pi-ai";
+import type { ExtensionFactory } from "@mariozechner/pi-coding-agent";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/config.js";
 import { resolveContextWindowInfo } from "../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
-import { PROVIDER_ENV_VAR_MAP } from "../gondolin/index.js";
 import { resolveAllowedHostsForProviders } from "../gondolin/provider-hosts.js";
-import { setGondolinRuntime } from "../pi-extensions/gondolin-runtime.js";
 import { setCompactionSafeguardRuntime } from "../pi-extensions/compaction-safeguard-runtime.js";
 import { setContextPruningRuntime } from "../pi-extensions/context-pruning/runtime.js";
 import { computeEffectiveSettings } from "../pi-extensions/context-pruning/settings.js";
 import { makeToolPrunablePredicate } from "../pi-extensions/context-pruning/tools.js";
+import { setGondolinRuntime } from "../pi-extensions/gondolin-runtime.js";
+import { createGondolinExtension } from "../pi-extensions/gondolin.js";
 import { ensurePiCompactionReserveTokens } from "../pi-settings.js";
 import { resolveSandboxConfigForAgent } from "../sandbox/config.js";
 import { isCacheTtlEligibleProvider, readLastCacheTtlTimestamp } from "./cache-ttl.js";
@@ -86,7 +87,7 @@ function buildGondolinExtension(params: {
   provider: string;
   modelId: string;
   modelRegistry: unknown;
-}): { additionalExtensionPaths?: string[] } {
+}): { additionalExtensionPaths?: string[]; extensionFactories?: ExtensionFactory[] } {
   // Resolve sandbox config to check if gondolin is enabled
   const sandboxCfg = resolveSandboxConfigForAgent(params.cfg, params.modelId);
   const gondolinCfg = sandboxCfg.gondolin;
@@ -111,10 +112,12 @@ function buildGondolinExtension(params: {
       // @ts-expect-error - modelRegistry is from pi-coding-agent
       const apiKey = params.modelRegistry.getApiKey(params.provider);
       if (apiKey) {
-        apiKeys = [{
-          provider: params.provider,
-          apiKey,
-        }];
+        apiKeys = [
+          {
+            provider: params.provider,
+            apiKey,
+          },
+        ];
       }
     }
   } catch {
@@ -133,6 +136,7 @@ function buildGondolinExtension(params: {
 
   return {
     additionalExtensionPaths: [resolvePiExtensionPath("gondolin")],
+    extensionFactories: [createGondolinExtension()],
   };
 }
 
@@ -144,8 +148,9 @@ export function buildEmbeddedExtensionPaths(params: {
   model: Model<Api> | undefined;
   workspaceDir?: string;
   modelRegistry?: unknown;
-}): string[] {
+}): { extensionPaths: string[]; extensionFactories: ExtensionFactory[] } {
   const paths: string[] = [];
+  const factories: ExtensionFactory[] = [];
   if (resolveCompactionMode(params.cfg) === "safeguard") {
     const compactionCfg = params.cfg?.agents?.defaults?.compaction;
     const contextWindowInfo = resolveContextWindowInfo({
@@ -165,8 +170,16 @@ export function buildEmbeddedExtensionPaths(params: {
   if (pruning.additionalExtensionPaths) {
     paths.push(...pruning.additionalExtensionPaths);
   }
-  
+
   // Build gondolin extension if enabled
+  console.log(
+    "[Gondolin] Building gondolin extension with config:",
+    JSON.stringify({
+      hasConfig: !!params.cfg,
+      sandbox: params.cfg?.agents?.defaults?.sandbox,
+      gondolin: params.cfg?.agents?.defaults?.sandbox?.gondolin,
+    }),
+  );
   const gondolin = buildGondolinExtension({
     cfg: params.cfg,
     sessionManager: params.sessionManager,
@@ -178,8 +191,11 @@ export function buildEmbeddedExtensionPaths(params: {
   if (gondolin.additionalExtensionPaths) {
     paths.push(...gondolin.additionalExtensionPaths);
   }
-  
-  return paths;
+  if (gondolin.extensionFactories) {
+    factories.push(...gondolin.extensionFactories);
+  }
+
+  return { extensionPaths: paths, extensionFactories: factories };
 }
 
 export { ensurePiCompactionReserveTokens };

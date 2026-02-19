@@ -3,7 +3,12 @@ import os from "node:os";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
-import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
+import {
+  createAgentSession,
+  SessionManager,
+  SettingsManager,
+  DefaultResourceLoader,
+} from "@mariozechner/pi-coding-agent";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
@@ -536,8 +541,9 @@ export async function runEmbeddedAttempt(
         minReserveTokens: resolveCompactionReserveTokensFloor(params.config),
       });
 
-      // Call for side effects (sets compaction/pruning runtime state)
-      buildEmbeddedExtensionPaths({
+      // Build extension paths and get them for resource loader
+      console.log("[Extensions] Building embedded extension paths...");
+      const { extensionPaths, extensionFactories } = buildEmbeddedExtensionPaths({
         cfg: params.config,
         sessionManager,
         provider: params.provider,
@@ -547,6 +553,23 @@ export async function runEmbeddedAttempt(
         modelRegistry: params.modelRegistry,
       });
 
+      // Create resource loader with extension factories (for direct invocation)
+      // and additional extension paths (for SDK dynamic loading)
+      console.log(
+        "[Extensions] Creating resource loader with paths:",
+        extensionPaths,
+        "and",
+        extensionFactories.length,
+        "factories",
+      );
+      const resourceLoader = new DefaultResourceLoader({
+        cwd: resolvedWorkspace,
+        agentDir,
+        settingsManager,
+        additionalExtensionPaths: extensionPaths,
+        extensionFactories: extensionFactories,
+      });
+
       // Get hook runner early so it's available when creating tools
       const hookRunner = getGlobalHookRunner();
 
@@ -554,6 +577,13 @@ export async function runEmbeddedAttempt(
         tools,
         sandboxEnabled: !!sandbox?.enabled,
       });
+
+      // When Gondolin is enabled, filter out exec and process tools from customTools
+      // so the extension's VM-based exec tool takes precedence
+      const gondolinEnabled = sandbox?.gondolin?.enabled ?? false;
+      const filteredCustomTools = gondolinEnabled
+        ? customTools.filter((tool) => tool.name !== "exec" && tool.name !== "process")
+        : customTools;
 
       // Add client tools (OpenResponses hosted tools) to customTools
       let clientToolCallDetected: { name: string; params: Record<string, unknown> } | null = null;
@@ -575,7 +605,7 @@ export async function runEmbeddedAttempt(
           )
         : [];
 
-      const allCustomTools = [...customTools, ...clientToolDefs];
+      const allCustomTools = [...filteredCustomTools, ...clientToolDefs];
 
       ({ session } = await createAgentSession({
         cwd: resolvedWorkspace,
@@ -588,6 +618,7 @@ export async function runEmbeddedAttempt(
         customTools: allCustomTools,
         sessionManager,
         settingsManager,
+        resourceLoader,
       }));
       applySystemPromptOverrideToSession(session, systemPromptText);
       if (!session) {
