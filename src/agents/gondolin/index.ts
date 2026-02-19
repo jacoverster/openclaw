@@ -23,13 +23,14 @@ export {
   validateVMConfig,
   listGondolinSessions,
   findGondolinSession,
+  PROVIDER_ENV_VAR_MAP,
 } from "./vm-manager.js";
 
 export type {
   ResolvedApiKey,
 } from "./vm-manager.js";
 
-// Types from gondolin SDK
+// Re-export from gondolin SDK (these require @earendil-works/gondolin to be installed)
 export type {
   GondolinVM,
   GondolinVMConfig,
@@ -50,9 +51,15 @@ export type {
   GondolinErrorCode,
 } from "./types.js";
 
+// Re-export RealFSProvider - it's the same as GondolinRealFSProvider
+export type { GondolinRealFSProvider as RealFSProvider } from "./types.js";
+
 // Constants
 export {
   GONDOLIN_VM_DEFAULT_MEMORY_MB,
   GONDOLIN_VM_DEFAULT_CPUS,
   GONDOLIN_DNS_MODE_DEFAULT,
+  GONDOLIN_VFS_DEFAULT_WORKSPACE_MODE,
+  GONDOLIN_VFS_WORKSPACE_TARGET,
+  GONDOLIN_VFS_SESSION_TARGET,
 } from "./constants.js";

@@ -28,7 +28,7 @@ export type {
 /**
  * Provider to environment variable name mapping
  */
-const PROVIDER_ENV_VAR_MAP: Record<string, string> = {
+export const PROVIDER_ENV_VAR_MAP: Record<string, string> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   "azure-openai": "AZURE_OPENAI_API_KEY",
