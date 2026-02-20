@@ -570,6 +570,10 @@ export async function runEmbeddedAttempt(
         extensionFactories: extensionFactories,
       });
 
+      // CRITICAL: Call reload() to load extensions from both paths AND factories
+      // Without this, extensionFactories are never invoked!
+      await resourceLoader.reload();
+
       // Get hook runner early so it's available when creating tools
       const hookRunner = getGlobalHookRunner();
 
