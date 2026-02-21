@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import * as runtimeStatusModule from "./runtime-status.js";
+import "./runtime-status.js";
 
 // Mock the entire module
 vi.mock("./runtime-status.js", () => ({
@@ -156,7 +156,7 @@ describe("resolveSandboxContext with Gondolin", () => {
     const { resolveSandboxContext } = await import("./context.js");
 
     // Call with minimal config - Gondolin defaults to disabled
-    const result = await resolveSandboxContext({
+    await resolveSandboxContext({
       config: {
         agents: {
           defaults: {

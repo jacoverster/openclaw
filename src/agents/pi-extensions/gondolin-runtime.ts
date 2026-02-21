@@ -28,6 +28,8 @@ export interface GondolinRuntimeConfig {
   dnsMode?: "synthetic" | "trusted" | "open";
   /** Enable ingress for exposing guest services */
   enableIngress?: boolean;
+  /** Whether Gondolin VM is enabled */
+  gondolinEnabled?: boolean;
 }
 
 /**
@@ -39,19 +41,14 @@ const gondolinRuntimeRegistry = createSessionManagerRuntimeRegistry<GondolinRunt
 /**
  * Set gondolin runtime configuration for a session
  */
-export function setGondolinRuntime(
-  sessionManager: unknown,
-  config: GondolinRuntimeConfig
-): void {
+export function setGondolinRuntime(sessionManager: unknown, config: GondolinRuntimeConfig): void {
   gondolinRuntimeRegistry.set(sessionManager, config);
 }
 
 /**
  * Get gondolin runtime configuration for a session
  */
-export function getGondolinRuntime(
-  sessionManager: unknown
-): GondolinRuntimeConfig | null {
+export function getGondolinRuntime(sessionManager: unknown): GondolinRuntimeConfig | null {
   return gondolinRuntimeRegistry.get(sessionManager);
 }
 

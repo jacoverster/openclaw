@@ -44,6 +44,12 @@ export class GondolinVMManager {
   private vms: Map<string, VMType> = new Map();
   private proxyHandlers: Map<string, ProxyToolHandler> = new Map();
   private config: GondolinVMConfig | null = null;
+  private idleTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private checkpoints: Map<string, string> = new Map(); // agentId -> checkpointPath
+
+  // Configuration for lifecycle management
+  private readonly IDLE_TIMEOUT_MS = 45 * 60 * 1000; // 45 minutes
+  private readonly CHECKPOINT_DIR = "/tmp/gondolin-checkpoints";
 
   /**
    * Initialize the VM manager with configuration
@@ -65,6 +71,8 @@ export class GondolinVMManager {
   async getOrCreateVM(agentId: string): Promise<VMType> {
     const existing = this.vms.get(agentId);
     if (existing) {
+      // Reset idle timeout on access
+      this.resetIdleTimeout(agentId);
       return existing;
     }
 
@@ -74,7 +82,78 @@ export class GondolinVMManager {
 
     const vm = await this.createVM(agentId);
     this.vms.set(agentId, vm);
+
+    // Start idle timeout for this VM
+    this.resetIdleTimeout(agentId);
+
     return vm;
+  }
+
+  /**
+   * Reset the idle timeout for an agent's VM
+   * Called on each VM access to keep the VM alive
+   */
+  private resetIdleTimeout(agentId: string): void {
+    // Clear existing timeout
+    const existing = this.idleTimeouts.get(agentId);
+    if (existing) {
+      clearTimeout(existing);
+    }
+
+    // Set new timeout to shutdown VM after 45 minutes of inactivity
+    const timeout = setTimeout(async () => {
+      console.log(`[Gondolin] VM for agent ${agentId} idle for 45 minutes, shutting down...`);
+      await this.shutdownVM(agentId);
+    }, this.IDLE_TIMEOUT_MS);
+
+    this.idleTimeouts.set(agentId, timeout);
+  }
+
+  /**
+   * Create a checkpoint after FS-modifying operations
+   * This enables fast resume and protects against malicious FS damage
+   */
+  async createCheckpoint(agentId: string): Promise<string | null> {
+    const vm = this.vms.get(agentId);
+    if (!vm) {
+      return null;
+    }
+
+    try {
+      // Use Gondolin's checkpoint API if available
+      if (typeof vm.checkpoint === "function") {
+        const checkpointPath = `${this.CHECKPOINT_DIR}/${agentId}-${Date.now()}.qcow2`;
+        await vm.checkpoint(checkpointPath);
+        this.checkpoints.set(agentId, checkpointPath);
+        console.log(`[Gondolin] Created checkpoint for agent ${agentId}: ${checkpointPath}`);
+        return checkpointPath;
+      }
+      console.log("[Gondolin] VM.checkpoint not available, skipping checkpoint");
+      return null;
+    } catch (error) {
+      console.error(`[Gondolin] Failed to create checkpoint for ${agentId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Resume from a checkpoint if available
+   */
+  async resumeFromCheckpoint(agentId: string): Promise<VMType | null> {
+    const checkpointPath = this.checkpoints.get(agentId);
+    if (!checkpointPath) {
+      return null;
+    }
+
+    try {
+      // Use Gondolin's checkpoint resume API if available
+      // This would require access to the checkpoint object
+      console.log("[Gondolin] Would resume from checkpoint: " + checkpointPath);
+      return null;
+    } catch (error) {
+      console.error("[Gondolin] Failed to resume from checkpoint:", error);
+      return null;
+    }
   }
 
   /**

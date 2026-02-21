@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach } from "vitest";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   setGondolinRuntime,
   getGondolinRuntime,
@@ -26,9 +26,7 @@ describe("gondolin-runtime", () => {
       const config: GondolinRuntimeConfig = {
         workspaceDir: "/home/user/test-project",
         sessionLabel: "test-session",
-        apiKeys: [
-          { provider: "anthropic", apiKey: "sk-ant-test" },
-        ],
+        apiKeys: [{ provider: "anthropic", apiKey: "sk-ant-test" }],
         additionalHosts: ["api.example.com"],
         dnsMode: "synthetic",
         enableIngress: false,

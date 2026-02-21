@@ -67,9 +67,7 @@ describe("vm-manager", () => {
 
     it("should return placeholder when gondolin not installed", async () => {
       // We mock gondolin above, so this test checks the actual SDK path
-      const apiKeys: ResolvedApiKey[] = [
-        { provider: "anthropic", apiKey: "sk-ant-test123" },
-      ];
+      const apiKeys: ResolvedApiKey[] = [{ provider: "anthropic", apiKey: "sk-ant-test123" }];
 
       const result = await createSecretInjector(apiKeys, []);
 
@@ -113,9 +111,7 @@ describe("vm-manager", () => {
     });
 
     it("should handle unknown provider with default env var", async () => {
-      const apiKeys: ResolvedApiKey[] = [
-        { provider: "unknown-provider", apiKey: "test-key" },
-      ];
+      const apiKeys: ResolvedApiKey[] = [{ provider: "unknown-provider", apiKey: "test-key" }];
 
       const result = await createSecretInjector(apiKeys, []);
 
@@ -243,7 +239,10 @@ describe("vm-manager", () => {
           this.path = hostPath;
         }
       }
-      const vfs = createWorkspaceVFS("/home/user/project", MockRealFSProvider as any);
+      const vfs = createWorkspaceVFS(
+        "/home/user/project",
+        MockRealFSProvider as new (path: string) => unknown,
+      );
 
       expect(vfs.mounts).toBeDefined();
       expect(vfs.mounts["/workspace"]).toBeDefined();
@@ -257,9 +256,12 @@ describe("vm-manager", () => {
           this.path = hostPath;
         }
       }
-      const vfs = createWorkspaceVFS("/tmp/test-workspace", MockRealFSProvider as any);
+      const vfs = createWorkspaceVFS(
+        "/tmp/test-workspace",
+        MockRealFSProvider as new (path: string) => unknown,
+      );
 
-      expect((vfs.mounts["/workspace"]).path).toBe("/tmp/test-workspace");
+      expect((vfs.mounts["/workspace"] as { path: string }).path).toBe("/tmp/test-workspace");
     });
   });
 

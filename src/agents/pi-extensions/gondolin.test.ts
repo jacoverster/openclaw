@@ -44,13 +44,13 @@ describe("gondolin path utilities", () => {
 
     it("throws on path escape attempt (..)", () => {
       expect(() => toGuestPath("/home/user/project", "/home/user/../etc/passwd")).toThrow(
-        "path escapes workspace"
+        "path escapes workspace",
       );
     });
 
     it("throws on absolute path outside workspace", () => {
       expect(() => toGuestPath("/home/user/project", "/etc/passwd")).toThrow(
-        "path escapes workspace"
+        "path escapes workspace",
       );
     });
 
@@ -268,14 +268,14 @@ describe("gondolin exec cancellation (GON-08)", () => {
 
     it("should abort a mock VM exec via signal", async () => {
       const controller = new AbortController();
-      const mockExec = vi.fn().mockImplementation(
-        (_cmd: string, opts?: { signal?: AbortSignal }) => {
+      const mockExec = vi
+        .fn()
+        .mockImplementation((_cmd: string, opts?: { signal?: AbortSignal }) => {
           if (opts?.signal?.aborted) {
             return Promise.reject(new DOMException("The operation was aborted", "AbortError"));
           }
           return Promise.resolve({ ok: true, exitCode: 0, stdout: "", stderr: "" });
-        }
-      );
+        });
 
       // Abort before exec
       controller.abort();
@@ -284,8 +284,9 @@ describe("gondolin exec cancellation (GON-08)", () => {
 
     it("should abort a running mock VM exec when signal fires", async () => {
       const controller = new AbortController();
-      const mockExec = vi.fn().mockImplementation(
-        (_cmd: string, opts?: { signal?: AbortSignal }) => {
+      const mockExec = vi
+        .fn()
+        .mockImplementation((_cmd: string, opts?: { signal?: AbortSignal }) => {
           return new Promise((resolve, reject) => {
             const onAbort = () => {
               reject(new DOMException("The operation was aborted", "AbortError"));
@@ -297,8 +298,7 @@ describe("gondolin exec cancellation (GON-08)", () => {
             opts?.signal?.addEventListener("abort", onAbort, { once: true });
             // Simulate long-running command that never resolves on its own
           });
-        }
-      );
+        });
 
       const execPromise = mockExec("sleep 3600", { signal: controller.signal });
       // Abort after starting
@@ -321,11 +321,14 @@ describe("gondolin VM lifecycle (GON-07)", () => {
     const vm = await gondolin.VM.create({});
 
     expect(vm.id).toBe("test-vm-id");
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(vm.exec).toBeDefined();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(vm.close).toBeDefined();
 
     // Close should be callable
     await vm.close();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(gondolin.VM.create).toHaveBeenCalled();
   });
 
@@ -337,6 +340,7 @@ describe("gondolin VM lifecycle (GON-07)", () => {
     (vm.close as ReturnType<typeof vi.fn>).mockClear();
     await vm.close();
 
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(vm.close).toHaveBeenCalledOnce();
   });
 

@@ -388,26 +388,14 @@ export async function runExecProcess(opts: {
     // Check if Gondolin VM is enabled for this sandbox
     const gondolinEnabled = opts.sandbox?.gondolin?.enabled ?? false;
 
-    // If Gondolin is enabled, skip Docker and use local exec (host)
-    // Note: Full Gondolin VM integration requires separate process supervisor hook
+    // If Gondolin is enabled, exec now happens inside the VM (Thick VM mode)
+    // This fallback path is deprecated - enforce Thick VM by throwing error
     if (opts.sandbox && gondolinEnabled) {
-      const { shell, args: shellArgs } = getShellConfig();
-      const childArgv = [shell, ...shellArgs, execCommand];
-      if (opts.usePty) {
-        return {
-          mode: "pty" as const,
-          ptyCommand: execCommand,
-          childFallbackArgv: childArgv,
-          env: opts.env,
-          stdinMode: "pipe-open" as const,
-        };
-      }
-      return {
-        mode: "child" as const,
-        argv: childArgv,
-        env: opts.env,
-        stdinMode: "pipe-closed" as const,
-      };
+      // Throw error to enforce Thick VM - exec must run inside Gondolin guest
+      throw new Error(
+        "[bash-tools] Host-side exec is not supported when Gondolin Thick VM is enabled. " +
+          "Exec must run inside the Gondolin guest VM.",
+      );
     }
 
     if (opts.sandbox) {

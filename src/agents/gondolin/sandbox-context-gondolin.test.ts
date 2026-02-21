@@ -11,17 +11,17 @@ import { describe, expect, it } from "vitest";
 import { resolveSandboxGondolinConfig } from "../sandbox/config.js";
 import type { SandboxGondolinConfig } from "../sandbox/types.js";
 import {
+  GONDOLIN_VFS_WORKSPACE_TARGET,
+  GONDOLIN_DNS_MODE_DEFAULT,
+  GONDOLIN_VFS_DEFAULT_WORKSPACE_MODE,
+} from "./constants.js";
+import { resolveAllowedHostsForProviders } from "./provider-hosts.js";
+import {
   createGondolinSandboxConfig,
   validateGondolinConfig,
   mergeGondolinConfigs,
   type GondolinSandboxConfig,
 } from "./sandbox-config.js";
-import { resolveAllowedHostsForProviders } from "./provider-hosts.js";
-import {
-  GONDOLIN_VFS_WORKSPACE_TARGET,
-  GONDOLIN_DNS_MODE_DEFAULT,
-  GONDOLIN_VFS_DEFAULT_WORKSPACE_MODE,
-} from "./constants.js";
 
 describe("sandbox context with Gondolin enabled", () => {
   describe("resolveSandboxGondolinConfig", () => {
@@ -131,38 +131,27 @@ describe("sandbox context with Gondolin enabled", () => {
 
   describe("Gondolin sandbox config creation (GON-01)", () => {
     it("should create config with workspace mount at /workspace", () => {
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/home/user/workspace",
-        []
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/home/user/workspace", []);
 
       expect(config.mounts).toBeDefined();
       expect(config.mounts?.length).toBeGreaterThanOrEqual(1);
-      const workspaceMount = config.mounts?.find(
-        (m) => m.target === GONDOLIN_VFS_WORKSPACE_TARGET
-      );
+      const workspaceMount = config.mounts?.find((m) => m.target === GONDOLIN_VFS_WORKSPACE_TARGET);
       expect(workspaceMount).toBeDefined();
       expect(workspaceMount?.source).toBe("/home/user/workspace");
       expect(workspaceMount?.mode).toBe(GONDOLIN_VFS_DEFAULT_WORKSPACE_MODE);
     });
 
     it("should set default DNS mode to synthetic", () => {
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/workspace",
-        []
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/workspace", []);
 
       expect(config.network?.dnsMode).toBe(GONDOLIN_DNS_MODE_DEFAULT);
     });
 
     it("should include provider hosts in network allowlist (GON-03)", () => {
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/workspace",
-        ["anthropic", "openai"]
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/workspace", [
+        "anthropic",
+        "openai",
+      ]);
 
       expect(config.network?.allowedHosts).toContain("api.anthropic.com");
       expect(config.network?.allowedHosts).toContain("api.openai.com");
@@ -184,7 +173,7 @@ describe("sandbox context with Gondolin enabled", () => {
         { enabled: true },
         "/workspace",
         ["anthropic", "openai"],
-        secrets
+        secrets,
       );
 
       expect(config.http?.secrets).toBeDefined();
@@ -202,21 +191,14 @@ describe("sandbox context with Gondolin enabled", () => {
     });
 
     it("should resolve allowed hosts for multiple providers", () => {
-      const hosts = resolveAllowedHostsForProviders([
-        "anthropic",
-        "openai",
-        "google",
-      ]);
+      const hosts = resolveAllowedHostsForProviders(["anthropic", "openai", "google"]);
       expect(hosts).toContain("api.anthropic.com");
       expect(hosts).toContain("api.openai.com");
       expect(hosts).toContain("generativelanguage.googleapis.com");
     });
 
     it("should deduplicate hosts", () => {
-      const hosts = resolveAllowedHostsForProviders([
-        "anthropic",
-        "anthropic",
-      ]);
+      const hosts = resolveAllowedHostsForProviders(["anthropic", "anthropic"]);
       const count = hosts.filter((h) => h === "api.anthropic.com").length;
       expect(count).toBe(1);
     });
@@ -227,9 +209,7 @@ describe("sandbox context with Gondolin enabled", () => {
         dnsMode: "trusted",
       });
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        "dnsServers required when dnsMode is 'trusted'"
-      );
+      expect(result.errors).toContain("dnsServers required when dnsMode is 'trusted'");
     });
 
     it("should validate trusted mode with DNS servers passes", () => {
@@ -244,15 +224,9 @@ describe("sandbox context with Gondolin enabled", () => {
 
   describe("Gondolin VFS mounts (GON-04)", () => {
     it("should mount workspace at /workspace by default", () => {
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/home/user/project",
-        []
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/home/user/project", []);
 
-      const wsMount = config.mounts?.find(
-        (m) => m.target === "/workspace"
-      );
+      const wsMount = config.mounts?.find((m) => m.target === "/workspace");
       expect(wsMount).toBeDefined();
       expect(wsMount?.source).toBe("/home/user/project");
     });
@@ -261,12 +235,10 @@ describe("sandbox context with Gondolin enabled", () => {
       const config = createGondolinSandboxConfig(
         {
           enabled: true,
-          mounts: [
-            { source: "/data/models", target: "/models", mode: "ro" },
-          ],
+          mounts: [{ source: "/data/models", target: "/models", mode: "ro" }],
         },
         "/workspace",
-        []
+        [],
       );
 
       expect(config.mounts).toHaveLength(2);
@@ -303,22 +275,13 @@ describe("sandbox context with Gondolin enabled", () => {
         },
       };
 
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/workspace",
-        [],
-        secrets
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/workspace", [], secrets);
 
       expect(config.http?.secrets).toEqual(secrets);
     });
 
     it("should not include http.secrets when no secrets provided", () => {
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/workspace",
-        []
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/workspace", []);
 
       expect(config.http?.secrets).toBeUndefined();
     });
@@ -336,13 +299,11 @@ describe("sandbox context with Gondolin enabled", () => {
             hosts: ["api.anthropic.com"],
             value: "sk-ant-test",
           },
-        }
+        },
       );
 
       expect(config.network?.allowedHosts).toContain("api.anthropic.com");
-      expect(config.network?.allowedHosts).toContain(
-        "custom.api.example.com"
-      );
+      expect(config.network?.allowedHosts).toContain("custom.api.example.com");
     });
   });
 

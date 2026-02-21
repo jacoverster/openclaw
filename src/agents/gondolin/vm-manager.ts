@@ -148,7 +148,7 @@ async function tryLoadGondolin(): Promise<any> {
  */
 export async function createSecretInjector(
   apiKeys: ResolvedApiKey[],
-  additionalHosts: string[] = []
+  additionalHosts: string[] = [],
 ): Promise<GondolinHttpHooksResult> {
   const gondolin = await tryLoadGondolin();
 
@@ -159,7 +159,9 @@ export async function createSecretInjector(
   const secrets: Record<string, { hosts: string[]; value: string }> = {};
 
   for (const { provider, apiKey } of apiKeys) {
-    if (!apiKey) continue;
+    if (!apiKey) {
+      continue;
+    }
 
     const envVarName = getEnvVarName(provider);
     const hosts = getAllowedHosts(provider);
@@ -199,7 +201,9 @@ export async function createSecretInjector(
 
     // Build placeholder env vars (what gondolin would return)
     for (const { provider } of apiKeys) {
-      if (!provider) continue;
+      if (!provider) {
+        continue;
+      }
       const envVarName = getEnvVarName(provider);
       env[envVarName] = `GONDOLIN_SECRET_${provider.toUpperCase()}`;
     }
@@ -235,14 +239,12 @@ export async function createSecretInjector(
  * await vm.close();
  * ```
  */
-export async function createGondolinVM(
-  config: GondolinVMConfig
-): Promise<GondolinVM> {
+export async function createGondolinVM(config: GondolinVMConfig): Promise<GondolinVM> {
   const gondolin = await tryLoadGondolin();
 
   if (!gondolin) {
     throw new Error(
-      "@earendil-works/gondolin is not installed. Run: npm install @earendil-works/gondolin"
+      "@earendil-works/gondolin is not installed. Run: npm install @earendil-works/gondolin",
     );
   }
 
@@ -260,8 +262,8 @@ export async function createGondolinVM(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createWorkspaceVFS(
   workspaceDir: string,
-  RealFSProvider: new (path: string) => any
-): { mounts: { "/workspace": any } } {
+  RealFSProvider: new (path: string) => unknown,
+): { mounts: { "/workspace": unknown } } {
   return {
     mounts: {
       "/workspace": new RealFSProvider(workspaceDir),
@@ -272,9 +274,7 @@ export function createWorkspaceVFS(
 /**
  * Validate VM configuration
  */
-export function validateVMConfig(
-  config: GondolinVMConfig
-): { valid: boolean; errors: string[] } {
+export function validateVMConfig(config: GondolinVMConfig): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Validate DNS mode
@@ -310,9 +310,7 @@ export async function listGondolinSessions(): Promise<string[]> {
 /**
  * Find a session by label
  */
-export async function findGondolinSession(
-  label: string
-): Promise<GondolinVM | null> {
+export async function findGondolinSession(label: string): Promise<GondolinVM | null> {
   const gondolin = await tryLoadGondolin();
 
   if (!gondolin || !gondolin.findSession) {

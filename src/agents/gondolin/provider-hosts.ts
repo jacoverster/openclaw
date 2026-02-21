@@ -105,8 +105,10 @@ export function resolveAllowedHostsForProvider(provider: string): string[] {
 
   // Fallback: try substring match
   for (const [key, hosts] of Object.entries(DEFAULT_PROVIDER_HOSTS)) {
-    if (provider.toLowerCase().includes(key.toLowerCase()) ||
-        key.toLowerCase().includes(provider.toLowerCase())) {
+    if (
+      provider.toLowerCase().includes(key.toLowerCase()) ||
+      key.toLowerCase().includes(provider.toLowerCase())
+    ) {
       return hosts;
     }
   }
@@ -120,7 +122,8 @@ export function resolveAllowedHostsForProvider(provider: string): string[] {
  */
 function normalizeProviderId(provider: string): string {
   // Remove common prefixes/suffixes
-  let normalized = provider.toLowerCase()
+  let normalized = provider
+    .toLowerCase()
     .replace(/^(https?:\/\/)?/, "")
     .replace(/\/v[0-9]+$/, "")
     .replace(/^api\./, "")
@@ -129,12 +132,12 @@ function normalizeProviderId(provider: string): string {
 
   // Map known variations
   const mappings: Record<string, string> = {
-    "openai": "openai",
-    "anthropic": "anthropic",
-    "google": "google",
-    "gemini": "google",
-    "amazon": "bedrock",
-    "aws": "bedrock",
+    openai: "openai",
+    anthropic: "anthropic",
+    google: "google",
+    gemini: "google",
+    amazon: "bedrock",
+    aws: "bedrock",
   };
 
   return mappings[normalized] || provider;

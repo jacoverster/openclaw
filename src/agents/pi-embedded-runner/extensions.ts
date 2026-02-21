@@ -125,6 +125,7 @@ function buildGondolinExtension(params: {
   }
 
   // Set runtime configuration for the gondolin extension
+  // Include enabled flag so the extension can check it
   setGondolinRuntime(params.sessionManager, {
     workspaceDir: params.workspaceDir,
     sessionLabel: `openclaw-${params.modelId}-${Date.now()}`,
@@ -132,11 +133,15 @@ function buildGondolinExtension(params: {
     additionalHosts: allowedHosts,
     dnsMode: gondolinCfg.dnsMode,
     enableIngress: gondolinCfg.enableIngress,
+    gondolinEnabled: gondolinCfg.enabled ?? false,
   });
 
+  // Pass gondolinEnabled directly to the extension factory
   return {
     additionalExtensionPaths: [resolvePiExtensionPath("gondolin")],
-    extensionFactories: [createGondolinExtension()],
+    extensionFactories: [
+      createGondolinExtension({ gondolinEnabled: gondolinCfg.enabled ?? false }),
+    ],
   };
 }
 

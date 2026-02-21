@@ -26,9 +26,7 @@ export {
   PROVIDER_ENV_VAR_MAP,
 } from "./vm-manager.js";
 
-export type {
-  ResolvedApiKey,
-} from "./vm-manager.js";
+export type { ResolvedApiKey } from "./vm-manager.js";
 
 // Re-export from gondolin SDK (these require @earendil-works/gondolin to be installed)
 export type {

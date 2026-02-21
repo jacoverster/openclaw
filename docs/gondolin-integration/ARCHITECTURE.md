@@ -14,12 +14,13 @@ This document outlines the architectural design for integrating [Gondolin](https
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Current State Analysis](#current-state-analysis)
-3. [Gondolin Integration Points](#gondolin-integration-points)
-4. [Secret Injection Design](#secret-injection-design)
-5. [Implementation Phases](#implementation-phases)
-6. [File Changes Summary](#file-changes-summary)
-7. [Security Considerations](#security-considerations)
+2. [Current Implementation Issues (2026-02-20)](#current-implementation-issues-2026-02-20)
+3. [Current State Analysis](#current-state-analysis)
+4. [Gondolin Integration Points](#gondolin-integration-points)
+5. [Secret Injection Design](#secret-injection-design)
+6. [Implementation Phases](#implementation-phases)
+7. [File Changes Summary](#file-changes-summary)
+8. [Security Considerations](#security-considerations)
 
 ---
 
@@ -96,6 +97,133 @@ const vm = await VM.create({
 ```
 
 **Note**: For more complex egress control (custom hooks, request/response monitoring), use `createHttpHooks()` instead.
+
+---
+
+## Current Implementation Issues (2026-02-20)
+
+### ✅ FIXED: Extension Factory Not Being Invoked (2026-02-20)
+
+**Root Cause**: The `DefaultResourceLoader` was being created with `extensionFactories` in `attempt.ts`, but `reload()` was never called on it. The Pi SDK's CLI explicitly calls `await resourceLoader.reload()` before using the resource loader (see `main.ts` in the SDK).
+
+**Fix Applied** (in `src/agents/pi-embedded-runner/run/attempt.ts`):
+
+```typescript
+const resourceLoader = new DefaultResourceLoader({
+  cwd: resolvedWorkspace,
+  agentDir,
+  settingsManager,
+  additionalExtensionPaths: extensionPaths,
+  extensionFactories: extensionFactories,
+});
+
+// CRITICAL: Call reload() to load extensions from both paths AND factories
+// Without this, extensionFactories are never invoked!
+await resourceLoader.reload();
+```
+
+**Verification**:
+
+- Logs now show: `[Gondolin] Extension factory invoked with pi, registering tools...`
+- Logs show: `[Gondolin] Extension initialized successfully with exec, read, write, edit tools`
+- Exec tool now runs inside the Gondolin VM instead of on the host
+
+### Summary of Findings
+
+After analyzing the codebase, we identified that the Gondolin integration has a critical issue: **the Pi extension is never being loaded/initialized**.
+
+### How OpenClaw Uses Pi for Agent Sessions
+
+**Flow:**
+
+1. **attempt.ts** creates a `SandboxContext` via `resolveSandboxContext()`
+2. **pi-tools.ts** uses the sandbox context to create tools:
+   - `createExecTool()` receives sandbox config including `gondolin`
+   - Creates sandboxed read/write/edit tools via fsBridge
+3. **bash-tools.exec-runtime.ts** decides how to execute commands:
+   - Gondolin enabled → runs locally on host (BROKEN - should run in VM!)
+   - Sandbox enabled (Docker) → runs via `docker exec`
+   - No sandbox → runs locally on host
+
+### Current Docker Sandbox Architecture
+
+| Component    | File                         | Purpose                                            |
+| ------------ | ---------------------------- | -------------------------------------------------- |
+| Context      | `sandbox/context.ts`         | Resolves whether to use sandbox, creates workspace |
+| Docker       | `sandbox/docker.ts`          | Creates/manages Docker containers                  |
+| FS Bridge    | `sandbox/fs-bridge.ts`       | File operations with container                     |
+| Exec Runtime | `bash-tools.exec-runtime.ts` | Routes exec to Docker or host                      |
+
+**Docker Flow:**
+
+- `ensureSandboxContainer()` creates container with workspace mount
+- Commands run via `docker exec` inside container
+- Files accessed via fsBridge (proxies to container)
+
+### Current Gondolin Integration (BROKEN)
+
+**In `sandbox/context.ts`:**
+
+```typescript
+if (gondolinEnabled) {
+  // Skips Docker container creation
+  // Sets containerName: "" (empty)
+  // Still creates fsBridge
+}
+```
+
+**In `bash-tools.exec-runtime.ts`:**
+
+```typescript
+if (opts.sandbox && gondolinEnabled) {
+  // Runs LOCALLY ON HOST - NOT in VM!
+  // Comment says: "Full Gondolin VM integration requires separate process supervisor hook"
+}
+```
+
+**Pi Extension** (`gondolin.ts`):
+
+- Attempts to override exec/read/write/edit to run in VM
+- BUT the extension is NOT being loaded properly (factory never invoked)
+
+### The Core Problem
+
+The gondolin integration has TWO separate mechanisms that BOTH don't work:
+
+1. **Exec Runtime** (`bash-tools.exec-runtime.ts`): Runs commands on host, not in VM
+2. **Pi Extension** (`gondolin.ts`): Never gets loaded/initialized
+
+### Key Files That Need Changes
+
+| File                                          | Issue                                         |
+| --------------------------------------------- | --------------------------------------------- |
+| `src/agents/pi-extensions/gondolin.ts`        | Export pattern doesn't match official example |
+| `src/agents/sandbox/context.ts`               | Passes gondolin config but doesn't use VM     |
+| `src/agents/bash-tools.exec-runtime.ts`       | Runs commands locally instead of in VM        |
+| `src/agents/pi-embedded-runner/extensions.ts` | Extension factory not being invoked           |
+
+### Fix Strategy
+
+Based on the analysis, we have two main options:
+
+**Option A: Fix Pi Extension Loading (Recommended)**
+
+- Refactor `gondolin.ts` to match official example pattern
+- Export default function directly instead of using factory wrapper
+- Pass config via simpler mechanism (env vars or file)
+- Use `createBashTool` instead of custom exec tool
+
+**Option B: Direct Integration**
+
+- Remove Pi extension approach entirely
+- Integrate Gondolin SDK directly in `bash-tools.exec-runtime.ts`
+- Use VM for exec instead of Docker or host
+
+**Option C: Hybrid**
+
+- Keep Docker as fallback
+- Add Gondolin VM support via direct SDK integration
+- Use Pi extension only for read/write/edit overrides
 
 ---
 
@@ -205,9 +333,7 @@ export interface ProviderSecret {
   value: string; // Real API key (from getApiKeyForModel)
 }
 
-export function createSecretInjector(
-  apiKeys: ResolvedProviderAuth[],
-): SecretInjectionConfig {
+export function createSecretInjector(apiKeys: ResolvedProviderAuth[]): SecretInjectionConfig {
   // 1. For each API key, create a secret config
   // 2. Map provider endpoints to hosts
   // 3. Return config for createHttpHooks

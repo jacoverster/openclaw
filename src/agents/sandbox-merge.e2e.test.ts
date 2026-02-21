@@ -152,10 +152,10 @@ describe("sandbox config merges", () => {
     expect(resolved.dnsMode).toBe("trusted");
     expect(resolved.memoryMb).toBe(8192);
     expect(resolved.enableIngress).toBe(true);
-    
+
     // Agent-specific hosts override (not combined)
     expect(resolved.additionalHosts).toEqual(["agent.example.com"]);
-    
+
     // Defaults when not specified
     expect(resolved.cpus).toBe(2);
     expect(resolved.workspaceMode).toBe("rw");

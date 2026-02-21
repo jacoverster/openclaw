@@ -1,14 +1,25 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { OpenClawConfig } from "../../config/config.js";
-import { buildEmbeddedExtensionPaths } from "./extensions.js";
 import { setGondolinRuntime } from "../pi-extensions/gondolin-runtime.js";
+import { buildEmbeddedExtensionPaths } from "./extensions.js";
 
 // Mock dependencies
 vi.mock("../sandbox/config.js", () => ({
   resolveSandboxConfigForAgent: vi.fn((cfg: unknown, _modelId: string) => {
     const typedCfg = cfg as {
-      agents?: { defaults?: { sandbox?: { gondolin?: { enabled?: boolean; dnsMode?: string; enableIngress?: boolean; additionalHosts?: string[] } } } };
+      agents?: {
+        defaults?: {
+          sandbox?: {
+            gondolin?: {
+              enabled?: boolean;
+              dnsMode?: string;
+              enableIngress?: boolean;
+              additionalHosts?: string[];
+            };
+          };
+        };
+      };
     };
     const gondolin = typedCfg?.agents?.defaults?.sandbox?.gondolin;
     return {
@@ -144,7 +155,7 @@ describe("buildEmbeddedExtensionPaths", () => {
           dnsMode: "trusted",
           enableIngress: true,
           additionalHosts: expect.arrayContaining(["api.openai.com", "custom.example.com"]),
-        })
+        }),
       );
     });
 
@@ -191,7 +202,7 @@ describe("buildEmbeddedExtensionPaths", () => {
               apiKey: "sk-ant-test-key",
             }),
           ]),
-        })
+        }),
       );
     });
 
@@ -227,7 +238,7 @@ describe("buildEmbeddedExtensionPaths", () => {
         mockSessionManager,
         expect.objectContaining({
           apiKeys: [],
-        })
+        }),
       );
     });
 
@@ -259,7 +270,7 @@ describe("buildEmbeddedExtensionPaths", () => {
         mockSessionManager,
         expect.objectContaining({
           workspaceDir: "/home/user/my-project",
-        })
+        }),
       );
     });
   });

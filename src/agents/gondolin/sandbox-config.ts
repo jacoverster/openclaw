@@ -5,19 +5,13 @@
  * Gondolin as a sandbox type in OpenClaw's sandbox system.
  */
 
-import type {
-  GondolinDNSMode,
-  GondolinVFSMount,
-  GondolinVMConfig,
-} from "./types.js";
-
 import {
   GONDOLIN_DNS_MODE_DEFAULT,
   GONDOLIN_VFS_DEFAULT_WORKSPACE_MODE,
   GONDOLIN_VFS_WORKSPACE_TARGET,
 } from "./constants.js";
-
 import { resolveAllowedHostsForProviders } from "./provider-hosts.js";
+import type { GondolinDNSMode, GondolinVFSMount, GondolinVMConfig } from "./types.js";
 
 /**
  * Configuration for Gondolin sandbox in OpenClaw
@@ -66,7 +60,7 @@ export function createGondolinSandboxConfig(
   options: GondolinSandboxConfig,
   workspaceDir: string,
   providers: string[],
-  secrets?: Record<string, { hosts: string[]; value: string }>
+  secrets?: Record<string, { hosts: string[]; value: string }>,
 ): GondolinVMConfig {
   // Resolve allowed hosts from providers
   const providerHosts = resolveAllowedHostsForProviders(providers);
@@ -117,16 +111,13 @@ export function createGondolinSandboxConfig(
  */
 export function mergeGondolinConfigs(
   base: GondolinSandboxConfig,
-  override: Partial<GondolinSandboxConfig>
+  override: Partial<GondolinSandboxConfig>,
 ): GondolinSandboxConfig {
   return {
     enabled: override.enabled ?? base.enabled,
     dnsMode: override.dnsMode ?? base.dnsMode,
     dnsServers: override.dnsServers ?? base.dnsServers,
-    allowedHosts: [
-      ...(base.allowedHosts || []),
-      ...(override.allowedHosts || []),
-    ],
+    allowedHosts: [...(base.allowedHosts || []), ...(override.allowedHosts || [])],
     resources: {
       ...base.resources,
       ...override.resources,
@@ -135,10 +126,7 @@ export function mergeGondolinConfigs(
       ...base.env,
       ...override.env,
     },
-    mounts: [
-      ...(base.mounts || []),
-      ...(override.mounts || []),
-    ],
+    mounts: [...(base.mounts || []), ...(override.mounts || [])],
     image: override.image ?? base.image,
   };
 }
@@ -146,9 +134,10 @@ export function mergeGondolinConfigs(
 /**
  * Validate Gondolin sandbox configuration
  */
-export function validateGondolinConfig(
-  config: GondolinSandboxConfig
-): { valid: boolean; errors: string[] } {
+export function validateGondolinConfig(config: GondolinSandboxConfig): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors: string[] = [];
 
   if (config.enabled) {

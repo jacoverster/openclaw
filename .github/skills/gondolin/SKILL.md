@@ -75,12 +75,7 @@ const vm = await VM.create({
 const vm = await VM.create({ sessionLabel: "my-task" });
 
 // Access session utilities
-import {
-  listSessions,
-  findSession,
-  gcSessions,
-  connectToSession,
-} from "@earendil-works/gondolin";
+import { listSessions, findSession, gcSessions, connectToSession } from "@earendil-works/gondolin";
 ```
 
 ## Command Execution
@@ -195,10 +190,7 @@ for await (const chunk of stream) {
 await vm.writeFile("/tmp/hello.txt", "hello from host\n");
 
 // Stream-write from Node readable
-await vm.writeFile(
-  "/tmp/payload.bin",
-  Readable.from([Buffer.from([0xde, 0xad])]),
-);
+await vm.writeFile("/tmp/payload.bin", Readable.from([Buffer.from([0xde, 0xad])]));
 
 // Delete file
 await vm.deleteFile("/tmp/hello.txt");
@@ -413,9 +405,7 @@ await vm.enableIngress({
     }),
     onResponse: (res) => ({
       headers: { "x-ingress": "1" },
-      body: res.body
-        ? Buffer.from(res.body.toString("utf8").toUpperCase())
-        : undefined,
+      body: res.body ? Buffer.from(res.body.toString("utf8").toUpperCase()) : undefined,
     }),
   },
 });
@@ -479,11 +469,7 @@ checkpoint.delete();
 ## Image Management
 
 ```ts
-import {
-  hasGuestAssets,
-  ensureGuestAssets,
-  getAssetDirectory,
-} from "@earendil-works/gondolin";
+import { hasGuestAssets, ensureGuestAssets, getAssetDirectory } from "@earendil-works/gondolin";
 
 console.log("Assets available:", hasGuestAssets());
 console.log("Asset directory:", getAssetDirectory());

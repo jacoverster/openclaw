@@ -197,14 +197,14 @@ export interface GondolinVFSProvider {
  * Real filesystem provider
  */
 export interface GondolinRealFSProvider extends GondolinVFSProvider {
-  new(hostPath: string): GondolinRealFSProvider;
+  // Real filesystem provider - implemented as a class, not constructable from interface
 }
 
 /**
  * Memory provider
  */
 export interface GondolinMemoryProvider extends GondolinVFSProvider {
-  new(): GondolinMemoryProvider;
+  // Memory provider - implemented as a class, not constructable from interface
 }
 
 /**
@@ -243,9 +243,16 @@ export interface GondolinVMConfig {
     /** Custom IP check */
     isIpAllowed?: (req: { ip: string }) => boolean;
     /** Request head hook */
-    onRequestHead?: (req: { url: string; method: string; headers: Record<string, string> }) => typeof req;
+    onRequestHead?: (req: {
+      url: string;
+      method: string;
+      headers: Record<string, string>;
+    }) => typeof req;
     /** Response hook */
-    onResponse?: (res: { status: number; headers: Record<string, string> }, req: { url: string }) => typeof res;
+    onResponse?: (
+      res: { status: number; headers: Record<string, string> },
+      req: { url: string },
+    ) => typeof res;
   };
 
   /** VFS mounts */
@@ -254,7 +261,7 @@ export interface GondolinVMConfig {
   };
 
   /** HTTP hooks (from createHttpHooks) */
-  httpHooks?: any;
+  httpHooks?: unknown;
 
   /** Environment variables */
   env?: Record<string, string>;
@@ -290,7 +297,7 @@ export interface GondolinVMConfig {
  */
 export interface GondolinHttpHooksResult {
   /** HTTP hooks for VM.create() */
-  httpHooks: any;
+  httpHooks: unknown;
   /** Environment variables with placeholders */
   env: Record<string, string>;
 }
@@ -302,7 +309,7 @@ export class GondolinError extends Error {
   constructor(
     message: string,
     public readonly code: GondolinErrorCode,
-    public readonly vmId?: string
+    public readonly vmId?: string,
   ) {
     super(message);
     this.name = "GondolinError";

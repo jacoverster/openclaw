@@ -9,11 +9,7 @@ import {
 describe("sandbox-config", () => {
   describe("createGondolinSandboxConfig", () => {
     it("should create basic config with default values", () => {
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/home/user/workspace",
-        []
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/home/user/workspace", []);
 
       expect(config.workspaceDir).toBe("/home/user/workspace");
       expect(config.mounts).toHaveLength(1);
@@ -22,11 +18,10 @@ describe("sandbox-config", () => {
     });
 
     it("should include provider hosts in allowedHosts", () => {
-      const config = createGondolinSandboxConfig(
-        { enabled: true },
-        "/home/user/workspace",
-        ["anthropic", "openai"]
-      );
+      const config = createGondolinSandboxConfig({ enabled: true }, "/home/user/workspace", [
+        "anthropic",
+        "openai",
+      ]);
 
       expect(config.network?.allowedHosts).toContain("api.anthropic.com");
       expect(config.network?.allowedHosts).toContain("api.openai.com");
@@ -36,7 +31,7 @@ describe("sandbox-config", () => {
       const config = createGondolinSandboxConfig(
         { enabled: true, allowedHosts: ["custom.api.example.com"] },
         "/home/user/workspace",
-        ["anthropic"]
+        ["anthropic"],
       );
 
       expect(config.network?.allowedHosts).toContain("api.anthropic.com");
@@ -47,7 +42,7 @@ describe("sandbox-config", () => {
       const config = createGondolinSandboxConfig(
         { enabled: true, dnsMode: "trusted", dnsServers: ["8.8.8.8"] },
         "/home/user/workspace",
-        []
+        [],
       );
 
       expect(config.network?.dnsMode).toBe("trusted");
@@ -58,7 +53,7 @@ describe("sandbox-config", () => {
       const config = createGondolinSandboxConfig(
         { enabled: true, resources: { memoryMB: 8192, cpus: 4 } },
         "/home/user/workspace",
-        []
+        [],
       );
 
       expect(config.resources?.memoryMB).toBe(8192);
@@ -77,7 +72,7 @@ describe("sandbox-config", () => {
         { enabled: true },
         "/home/user/workspace",
         [],
-        secrets
+        secrets,
       );
 
       expect(config.http?.secrets).toEqual(secrets);
@@ -90,7 +85,7 @@ describe("sandbox-config", () => {
           mounts: [{ source: "/data", target: "/data", mode: "ro" }],
         },
         "/home/user/workspace",
-        []
+        [],
       );
 
       expect(config.mounts).toHaveLength(2); // workspace + custom
@@ -105,7 +100,7 @@ describe("sandbox-config", () => {
       const config = createGondolinSandboxConfig(
         { enabled: true, image: "custom-image:latest" },
         "/home/user/workspace",
-        []
+        [],
       );
 
       expect(config.image).toBe("custom-image:latest");
